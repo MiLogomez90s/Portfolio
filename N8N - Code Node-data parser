@@ -1,11 +1,98 @@
-const allJobs = $input.all().flatMap(item => item.json.results || []);
-const unique = [];
+const allJobs = $input
+  .all()
+  .flatMap(item => (Array.isArray(item.json?.results) ? item.json.results : []))
+  .filter(job => job && typeof job === 'object');
+
 const seen = new Set();
+const uniqueJobs = [];
 
 for (const job of allJobs) {
-  if (!seen.has(job.url)) {
-    seen.add(job.url);
-    unique.push(job);
-  }
+  const url = job.url || job.link || job.jobUrl || '';
+  const identifier = url.trim() || `${job.id ?? ''}-${job.title ?? ''}`.trim();
+
+  if (!identifier || seen.has(identifier)) continue;
+  seen.add(identifier);
+  uniqueJobs.push(job);
 }
-return [{ json: { jobs: unique.slice(0, 50) } }];
+
+const limitedJobs = uniqueJobs.slice(0, 50);
+
+const formatArray = (value, mapper = v => v) => {
+  if (!Array.isArray(value)) return '';
+  return value
+    .map(item => mapper(item))
+    .filter(Boolean)
+    .join(', ');
+};
+
+const normalizeText = value => {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'string') return String(value);
+  return value.replace(/\r?\n+/g, '\n').trim();
+};
+
+const rows = limitedJobs.map(job => {
+  const mandatorySkills = formatArray(job.skills, skill =>
+    skill?.relevance === 'MANDATORY' && skill?.name ? skill.name : ''
+  );
+
+  const niceToHaveSkills = formatArray(job.skills, skill =>
+    skill?.relevance === 'NICE_TO_HAVE' && skill?.name ? skill.name : ''
+  );
+
+  const languages = formatArray(job.languages, language =>
+    typeof language === 'string'
+      ? language
+      : language?.name || language?.label || ''
+  );
+
+  const locations = formatArray(job.locations, location =>
+    typeof location === 'string'
+      ? location
+      : location?.name || location?.city || ''
+  );
+
+  const engagement = job.engagement_duration ?? {};
+  const additionalQualifications = job.additional_qualifications ?? {};
+
+  return {
+    json: {
+      id: job.id ?? '',
+      title: normalizeText(job.title),
+      date_posted: job.date_posted ?? '',
+      url: job.url ?? job.link ?? job.jobUrl ?? '',
+      category: job.category ?? '',
+      category_group: job.category_group ?? '',
+      engagement_duration_label: engagement.label ?? '',
+      engagement_duration_weeks: engagement.weeks ?? '',
+      skills_mandatory: mandatorySkills,
+      skills_nice_to_have: niceToHaveSkills,
+      project_budget_total: job.project_budget_total ?? '',
+      project_budget_hourly_min: job.project_budget_hourly_min ?? '',
+      project_budget_hourly_max: job.project_budget_hourly_max ?? '',
+      project_budget_currency: job.project_budget_currency ?? '',
+      languages,
+      locations,
+      additional_qualifications_type: additionalQualifications.type ?? '',
+      additional_qualifications_pref_english_skill: additionalQualifications.prefEnglishSkill ?? '',
+      additional_qualifications_min_job_success_score: additionalQualifications.minJobSuccessScore ?? '',
+      number_of_positions_to_hire: job.number_of_positions_to_hire ?? '',
+      client_country: job.client_country ?? '',
+      client_city: job.client_city ?? '',
+      client_timezone: job.client_timezone ?? '',
+      client_total_assignments: job.client_total_assignments ?? '',
+      client_active_assignments: job.client_active_assignments ?? '',
+      client_total_hours: job.client_total_hours ?? '',
+      client_total_charges: job.client_total_charges ?? '',
+      client_feedback_count: job.client_feedback_count ?? '',
+      client_score: job.client_score ?? '',
+      client_jobs_with_hires: job.client_jobs_with_hires ?? '',
+      client_company_size: job.client_company_size ?? '',
+      client_company_industry: job.client_company_industry ?? '',
+      client_open_jobs: job.client_open_jobs ?? '',
+      description_text: normalizeText(job.description_text),
+    },
+  };
+});
+
+return rows;
