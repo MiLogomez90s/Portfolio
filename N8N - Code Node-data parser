@@ -1,0 +1,11 @@
+const allJobs = $input.all().flatMap(item => item.json.results || []);
+const unique = [];
+const seen = new Set();
+
+for (const job of allJobs) {
+  if (!seen.has(job.url)) {
+    seen.add(job.url);
+    unique.push(job);
+  }
+}
+return [{ json: { jobs: unique.slice(0, 50) } }];
